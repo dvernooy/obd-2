@@ -1,0 +1,147 @@
+﻿Rem Attribute VBA_ModuleType=VBADocumentModule
+Option VBASupport 1
+Private Sub CommandButton1_Click()
+
+Dim intPortID As Integer ' Ex. 1, 2, 3, 4 for COM1 - COM4
+intPortID = 3 'set com port id
+Call CommFlush(intPortID)
+Application.Calculate
+ActiveWorkbook.RefreshAll
+Call CommFlush(intPortID)
+PauseApp (200)
+lngStatus = CommWrite(intPortID, "t")
+PauseApp (200)
+'add a delay here prior to closing the port ...
+Call CommClose(intPortID)
+
+
+End Sub
+
+Private Sub CommandButton2_Click()
+ Dim intPortID As Integer ' Ex. 1, 2, 3, 4 for COM1 - COM4
+Dim lngStatus As Long ' indicates if operation was successful
+
+Dim strData As String ' data recieved from serial connection
+Dim row_top As Integer
+Dim col_left As Integer
+Dim row_number As Integer
+Dim col_number As Integer
+Dim row_count As Integer
+Dim i As Integer
+Dim colvector As Variant
+Dim timevector As Variant
+Dim range As Excel.range
+Dim end_of_string As Integer
+Dim num_counter As Long
+
+row_top = 14
+col_left = 1
+
+intPortID = 3 'set com port identifier
+lngStatus = CommOpen(intPortID, "\\.\COM" & CStr(intPortID), _
+"baud=19200 parity=N data=8 stop=1")
+Worksheets("PIPE2XL2").Cells(1, 2).Value = lngStatus
+
+row_number = Worksheets("PIPE2XL2").Cells(7, 2).Value '100
+col_number = Worksheets("PIPE2XL2").Cells(8, 2).Value '2
+
+Set range = Excel.Application.range(Cells(row_top, col_left), Cells(row_top + row_number - 1, col_left + col_number - 1).Resize(row_number, col_number))
+range.ClearContents
+
+ReDim colvector(1 To row_number, 1 To 1)
+ReDim timevector(1 To row_number, 1 To 1)
+
+lngStatus = CommWrite(intPortID, "s") 'send a charitor "s" to micro to indicate ready to recieve serial data
+        
+stop_code = 0
+num_counter = 0
+end_of_string = 0
+
+Do While stop_code <> 1
+         buf = ""
+         end_of_string = 0
+                Do While (end_of_string = 0) 'not yet end of string
+                    'read one byte at a time into a buffer
+                    strData = ""
+                    Do While (strData = "") 'nothing in buffer
+                        lngStatus = CommRead(intPortID, strData, 1)
+                    Loop 'got 1 byte
+                    If ((strData <> Chr(13)) And (strData <> Chr(10))) Then 'not a stop byte, append
+                        buf = buf + strData
+                    Else
+                        If strData = Chr(10) Then 'we read the string, flush buffer
+                            Call CommFlush(intPortID)
+                            end_of_string = 1
+                        End If
+                    End If
+                Loop 'end of string, got buffer
+        num_counter = num_counter + 1
+                For row_count = 1 To row_number - 1
+                colvector(row_count, 1) = colvector(row_count + 1, 1)
+                timevector(row_count, 1) = timevector(row_count + 1, 1)
+        Next row_count 'next row
+        colvector(row_number, 1) = Val(buf)
+        timevector(row_number, 1) = Time()
+        
+        Set range = Excel.Application.range(Cells(row_top, col_number), Cells(row_top, col_number).Resize(row_number, 1))
+        range.Value = colvector
+        Set range = Excel.Application.range(Cells(row_top, col_number - 1), Cells(row_top, col_number - 1).Resize(row_number, 1))
+        range.Value = timevector
+        Application.Calculate
+        ActiveWorkbook.RefreshAll
+        stop_code = Cells(3, 3).Value
+Loop
+End Sub
+
+
+Private Sub CommandButton3_Click()
+Dim intPortID As Integer ' Ex. 1, 2, 3, 4 for COM1 - COM4
+intPortID = 3 'set com port id
+Call CommFlush(intPortID)
+Application.Calculate
+ActiveWorkbook.RefreshAll
+Call CommFlush(intPortID)
+PauseApp (200)
+lngStatus = CommWrite(intPortID, "u")
+PauseApp (200)
+'add a delay here prior to closing the port ...
+Call CommClose(intPortID)
+
+End Sub
+
+Private Sub CommandButton4_Click()
+'test code
+Dim testvector As Variant
+Dim i As Integer
+Dim j As Integer
+Dim range As Excel.range
+
+Dim abData() As Byte
+Dim Str As String
+Dim m As Long
+
+
+j = 8
+ReDim testvector(1 To j, 1 To 1)
+
+For i = 1 To 8
+testvector(i, 1) = i
+Next i
+
+Cells(1, 10).Value = Time()
+
+Set range = Excel.Application.range(Cells(1, 11), Cells(1, 11).Resize(j, 1))
+range.Value = testvector
+
+Str = "Hello world!"
+' Convert string to bytes
+abData = StrConv(Str, vbFromUnicode)
+For m = 0 To UBound(abData)
+    Cells(m + 1, 13).Value = Hex(abData(m)) & "='" & Chr(abData(m)) & "'"
+Next
+' Convert bytes to string
+Str = StrConv(abData, vbUnicode)
+Cells(m + 2, 13).Value = "'" & Str & "'"
+
+End Sub
+

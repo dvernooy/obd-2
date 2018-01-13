@@ -1,0 +1,96 @@
+﻿Private Sub CommandButton1_Click()
+
+Dim intPortID As Integer ' Ex. 1, 2, 3, 4 for COM1 - COM4
+Dim lngStatus As Long ' indicates if operation was successful
+
+Dim strData As String ' data recieved from serial connection
+Dim buf As String 'data held for sheet
+Dim j, K As Integer
+
+Dim done As Integer
+Dim number_of_chars As String
+Dim total_count As Integer
+Dim response_count As Integer
+
+intPortID = 3 'set com port id
+
+Worksheets("PING").Cells(6, 2).Value = ""
+For K = 2 To 20
+    Worksheets("PING").Cells(3, K).ClearContents
+Next K
+
+lngStatus = CommOpen(intPortID, "\\.\COM" & CStr(intPortID), _
+"baud=19200 parity=N data=8 stop=1")
+Worksheets("PING").Cells(6, 2).Value = lngStatus
+PauseApp (200)
+
+lngStatus = CommWrite(intPortID, "s") 'send "s" to micro to indicate ready to recieve serial data
+
+done = 1
+number_of_chars = Worksheets("PING").Cells(1, 2).Value
+If (number_of_chars > 0) Then done = 0
+
+j = 1
+total_count = 0
+response_count = 0
+still_going = 1
+
+Do While (done = 0) 'outer loop allows multiple pings
+
+         lngStatus = CommWrite(intPortID, CStr(number_of_chars) & vbCrLf)
+          PauseApp (100)
+          For K = 1 To number_of_chars
+          lngStatus = CommWrite(intPortID, (Worksheets("PING").Cells(j + 1, K + 4).Value) & vbCrLf)
+          Next K
+            'now wait for a return response
+          PauseApp (100)
+          Call CommFlush(intPortID)
+          PauseApp (100)
+          
+          Do While (still_going = 1)
+                end_of_string = 0
+                buf = ""
+                Do While (end_of_string = 0) 'not yet end of string
+                    'read one byte at a time into a buffer
+                    strData = ""
+                    Do While (strData = "") 'nothing in buffer
+                        lngStatus = CommRead(intPortID, strData, 1)
+                    Loop 'nothing in buffer
+                    If ((strData <> Chr(13)) And (strData <> Chr(10))) Then
+                        buf = buf + strData
+                    Else
+                        If strData = Chr(10) Then 'we read the string, flush buffer
+                            Call CommFlush(intPortID)
+                            end_of_string = 1
+                        End If
+                    End If
+                Loop 'end of string
+                total_count = total_count + 1
+                response_count = response_count + 1
+                
+                If Val(buf) = 999 Then
+                    still_going = 0
+                Else
+                    Worksheets("PING").Cells(j + 2, response_count + 1).Value = Hex(Val(buf))
+                End If
+            Loop 'still_going
+          response_count = 0
+          still_going = 1
+          j = j + 3
+          number_of_chars = Cells(j, 2).Value
+          If (number_of_chars = 0) Then done = 1 'grey cell in spreadsheet allows to escape, or add more
+          'PauseApp (100)
+ Loop 'done
+         
+Call CommFlush(intPortID)
+PauseApp (100)
+lngStatus = CommWrite(intPortID, "u")
+PauseApp (100)
+'add a delay here prior to closing the port ...
+Call CommClose(intPortID)
+
+
+End Sub
+
+
+
